@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Affiche Djibouti 27 Juin - GeoHorn</title>
+
+  <style>
+    body {
+      margin: 0;
+      background: linear-gradient(180deg, #eaf5ff, #eeeeee);
+      font-family: Arial, sans-serif;
+      text-align: center;
+    }
+
+    .header {
+      padding: 20px 10px 10px;
+    }
+
+    .header h1 {
+      margin: 0;
+      color: #003b73;
+      font-size: 28px;
+    }
+
+    .header p {
+      margin: 8px auto;
+      max-width: 700px;
+      color: #333;
+      font-size: 16px;
+      line-height: 1.5;
+    }
+
+    .controls {
+      margin: 15px auto;
+      width: 90%;
+      max-width: 900px;
+      background: white;
+      padding: 18px;
+      border-radius: 14px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+    }
+
+    input, button {
+      margin: 7px;
+      padding: 10px 14px;
+      font-size: 14px;
+      border-radius: 7px;
+    }
+
+    button {
+      background: #0072bc;
+      color: white;
+      border: none;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #005a96;
+    }
+
+    .download-btn {
+      background: #009245;
+    }
+
+    .download-btn:hover {
+      background: #007a38;
+    }
+
+    .slider-box {
+      margin: 10px;
+      display: inline-block;
+      width: 250px;
+      text-align: left;
+    }
+
+    .slider-box label {
+      font-weight: bold;
+      font-size: 13px;
+      color: #003b73;
+    }
+
+    .slider-box input {
+      width: 100%;
+    }
+
+    canvas {
+      max-width: 90%;
+      border-radius: 14px;
+      box-shadow: 0 6px 22px rgba(0,0,0,0.28);
+      background: white;
+      margin-bottom: 30px;
+    }
+
+    .note {
+      font-size: 13px;
+      color: #555;
+      margin-top: 8px;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="header">
+    <h1> Crée ton affiche du 27 Juin </h1>
+    <p>
+      Ajoute ta photo, ajuste-la facilement dans le cercle, puis télécharge ton affiche personnalisée
+      pour célébrer fièrement le 49ᵉ anniversaire de l’indépendance de Djibouti.
+    </p>
+  </div>
+
+  <div class="controls">
+    <input type="file" id="photoInput" accept="image/*">
+    <button class="download-btn" onclick="downloadImage()">Télécharger l’image</button>
+
+    <br>
+
+    <div class="slider-box">
+      <label>Déplacer gauche / droite</label>
+      <input type="range" id="moveX" min="-180" max="180" value="0">
+    </div>
+
+    <div class="slider-box">
+      <label>Déplacer haut / bas</label>
+      <input type="range" id="moveY" min="-180" max="180" value="0">
+    </div>
+
+    <div class="slider-box">
+      <label>Taille / zoom photo</label>
+      <input type="range" id="zoom" min="1" max="2.8" step="0.01" value="1.25">
+    </div>
+
+    <div class="note">
+      Astuce : ajuste la position et le zoom pour bien centrer ton visage.
+    </div>
+  </div>
+
+  <canvas id="canvas" width="1024" height="1024"></canvas>
+
+  <script>
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+
+    const background = new Image();
+    background.src = "essi.png";
+
+    let userPhoto = null;
+
+    const moveX = document.getElementById("moveX");
+    const moveY = document.getElementById("moveY");
+    const zoom = document.getElementById("zoom");
+
+    background.onload = drawCanvas;
+
+    moveX.addEventListener("input", drawCanvas);
+    moveY.addEventListener("input", drawCanvas);
+    zoom.addEventListener("input", drawCanvas);
+
+    document.getElementById("photoInput").addEventListener("change", function(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+
+      reader.onload = function(event) {
+        userPhoto = new Image();
+        userPhoto.onload = drawCanvas;
+        userPhoto.src = event.target.result;
+      };
+
+      reader.readAsDataURL(file);
+    });
+
+    function drawCanvas() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      ctx.drawImage(background, 0, 0, canvas.width, canvas.height);
+
+      const centerX = 512;
+      const centerY = 505;
+      const radius = 230;
+      const diameter = radius * 2;
+
+      if (userPhoto) {
+        ctx.save();
+
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+        ctx.closePath();
+        ctx.clip();
+
+        const zoomValue = parseFloat(zoom.value);
+
+        const scale = Math.max(
+          diameter / userPhoto.width,
+          diameter / userPhoto.height
+        ) * zoomValue;
+
+        const drawWidth = userPhoto.width * scale;
+        const drawHeight = userPhoto.height * scale;
+
+        const x = centerX - drawWidth / 2 + parseInt(moveX.value);
+        const y = centerY - drawHeight / 2 + parseInt(moveY.value);
+
+        ctx.drawImage(userPhoto, x, y, drawWidth, drawHeight);
+
+        ctx.restore();
+      }
+    }
+
+    function downloadImage() {
+      const link = document.createElement("a");
+      link.download = "affiche_djibouti_27_juin_geohorn.png";
+      link.href = canvas.toDataURL("image/png");
+      link.click();
+    }
+  </script>
+
+</body>
+</html>
