@@ -87,22 +87,38 @@ class TestToolbox(unittest.TestCase):
     def test_structure(self):
         tb = self.pyt.Toolbox()
         self.assertEqual(tb.tools, [self.pyt.TraitementPDFAmiante])
-        self.assertEqual(len(self.params), 7)
+        self.assertEqual(len(self.params), 9)
         self.assertEqual([p.name for p in self.params],
                          ["dossier_pdf", "couche_troncons", "couche_points_pr", "couche_interplo",
-                          "gdb_sortie", "prefixe", "mode"])
+                          "gdb_sortie", "prefixe", "mode", "couche_historique",
+                          "champ_id_historique"])
         self.assertEqual(self.params[0].datatype, "DEFolder")
         self.assertEqual(self.params[1].datatype, "GPFeatureLayer")
         self.assertEqual(self.params[2].datatype, "GPFeatureLayer")
         self.assertIn("GPTableView", self.params[3].datatype)
         self.assertEqual(self.params[4].datatype, "DEWorkspace")
-        self.assertEqual(self.params[6].filter.list, ["DIAGNOSTIC", "RECONSTRUCTION"])
-        self.assertTrue(all(p.parameterType == "Required" for p in self.params))
+        self.assertEqual(self.params[6].filter.list,
+                         ["DIAGNOSTIC", "RECONSTRUCTION_BRETELLES", "RECONSTRUCTION_SECTIONS"])
+        self.assertTrue(all(p.parameterType == "Required" for p in self.params[:7]))
+        self.assertTrue(all(p.parameterType == "Optional" for p in self.params[7:]))
+        self.assertEqual(self.params[8].parameterDependencies, ["couche_historique"])
 
-    def test_messages_reconstruction_bloquee(self):
-        self._remplir(mode="RECONSTRUCTION")
+    def test_activation_parametres_historique(self):
+        self._remplir(mode="RECONSTRUCTION_BRETELLES")
+        self.outil.updateParameters(self.params)
+        self.assertTrue(self.params[7].enabled and self.params[8].enabled)
+        self._remplir(mode="DIAGNOSTIC")
+        self.outil.updateParameters(self.params)
+        self.assertFalse(self.params[7].enabled or self.params[8].enabled)
+
+    def test_messages_sections_bloquees(self):
+        self._remplir(mode="RECONSTRUCTION_SECTIONS")
         self.outil.updateMessages(self.params)
         self.assertIsNotNone(self.params[6].erreur)
+        self._remplir(mode="RECONSTRUCTION_BRETELLES")
+        self.params[6].erreur = None
+        self.outil.updateMessages(self.params)
+        self.assertIsNone(self.params[6].erreur)
 
     def test_messages_prefixe_invalide_et_couches_identiques(self):
         self._remplir(prefixe="1 mauvais")
@@ -153,8 +169,8 @@ class TestToolbox(unittest.TestCase):
         erreurs = [t for niv, t in faux_arcpy.MESSAGES if niv == "ERREUR"]
         self.assertTrue(any("objetid" in e and "nomplodeb" in e for e in erreurs))
 
-    def test_execute_refuse_reconstruction(self):
-        self._remplir(mode="RECONSTRUCTION")
+    def test_execute_refuse_sections(self):
+        self._remplir(mode="RECONSTRUCTION_SECTIONS")
         avant = faux_arcpy.instantane()
         with self.assertRaises(faux_arcpy.ExecuteError):
             self.outil.execute(self.params, None)

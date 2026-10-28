@@ -16,8 +16,12 @@ CHAMPS_TRONCONS = (
     "ABS_DEBUT", "ABS_FIN", "CUMUL_DEBUT", "CUMUL_FIN", "LONG_REF_M",
     "LONG_GEOM_M", "LOGIQUE_DEB", "LOGIQUE_FIN", "LOGIQUE_2", "LOGIQUE_3",
 )
-# Couche 2 — points PR : champs non connus à ce stade, à relever sur le VDI.
-CHAMPS_POINTS_PR: Sequence[str] = ()
+# Couche 2 — points PR (champs relevés sur le VDI ; exploitation en phase 3)
+CHAMPS_POINTS_PR = (
+    "ID_INTERPLO", "ROUTE", "DEPARTEMENT", "COTE", "TYPE_POINT", "PR", "ABSCISSE",
+    "CUMUL", "X_GEOM", "Y_GEOM", "X_REF", "Y_REF", "ECART_XY_M", "CONTROLE_XY",
+    "LOGIQUE_DEB", "LOGIQUE_FIN", "LOGIQUE_2", "LOGIQUE_3", "CONTROLE_TRONCON",
+)
 # Couche 3 — INTERPLO d'origine
 CHAMPS_INTERPLO = ("objetid", "route", "nomplodeb", "nomplofin")
 
@@ -28,6 +32,18 @@ EFFECTIF_INTERPLO = 3257
 
 TYPE_GEOM_TRONCONS = "Polyline"
 TYPE_GEOM_POINTS = "Point"
+TYPE_GEOM_INTERPLO = "Polyline"
+
+# Références spatiales annoncées (code EPSG)
+EPSG_TRONCONS = 2154
+EPSG_POINTS_PR = 2154
+EPSG_INTERPLO = 3857
+EPSG_SORTIE = 2154
+
+# Champs nécessaires à la reconstruction des bretelles
+CHAMPS_BRETELLES_INTERPLO = ("objetid", "route", "nomplodeb", "nomplofin")
+CHAMPS_BRETELLES_LOCAL_REQUIS = ("ID_INTERPLO", "LONG_REF_M")
+CHAMPS_BRETELLES_LOCAL_OPTIONNELS = ("ROUTE", "DEPARTEMENT", "COTE", "LONG_GEOM_M")
 
 
 def resoudre_champs(champs_presents: Iterable[str], champs_requis: Iterable[str]) -> Dict[str, Optional[str]]:
@@ -52,6 +68,9 @@ class DescriptionCouche(object):
         self.existe = False
         self.type_geometrie: Optional[str] = None
         self.reference_spatiale: Optional[str] = None
+        self.epsg: Optional[int] = None
+        self.has_m = False
+        self.has_z = False
         self.effectif: Optional[int] = None
         self.champs: List[Dict[str, object]] = []
         self.correspondance: Dict[str, Optional[str]] = {}
@@ -81,7 +100,8 @@ class DescriptionCouche(object):
 
 def decrire_couche(source, libelle: str, champs_requis: Sequence[str],
                    effectif_attendu: Optional[int] = None,
-                   type_geom_attendu: Optional[str] = None) -> DescriptionCouche:
+                   type_geom_attendu: Optional[str] = None,
+                   epsg_attendu: Optional[int] = None) -> DescriptionCouche:
     """Lit la structure d'une couche (lecture seule)."""
     import arcpy
 
@@ -93,8 +113,11 @@ def decrire_couche(source, libelle: str, champs_requis: Sequence[str],
     desc_c.type_geometrie = getattr(d, "shapeType", None)
     sr = getattr(d, "spatialReference", None)
     if sr is not None:
+        desc_c.epsg = getattr(sr, "factoryCode", None)
         desc_c.reference_spatiale = "{0} ({1})".format(
             getattr(sr, "name", "?"), getattr(sr, "factoryCode", "?"))
+    desc_c.has_m = bool(getattr(d, "hasM", False))
+    desc_c.has_z = bool(getattr(d, "hasZ", False))
     desc_c.effectif = int(arcpy.management.GetCount(source)[0])
     desc_c.champs = [{"nom": f.name, "type": f.type, "alias": f.aliasName}
                      for f in arcpy.ListFields(source)]
@@ -107,6 +130,9 @@ def decrire_couche(source, libelle: str, champs_requis: Sequence[str],
     if type_geom_attendu and desc_c.type_geometrie and desc_c.type_geometrie != type_geom_attendu:
         desc_c.anomalies.append("géométrie {0} au lieu de {1}".format(
             desc_c.type_geometrie, type_geom_attendu))
+    if epsg_attendu and desc_c.epsg and desc_c.epsg != epsg_attendu:
+        desc_c.anomalies.append("référence spatiale EPSG:{0} au lieu de EPSG:{1}".format(
+            desc_c.epsg, epsg_attendu))
     if getattr(d, "FIDSet", None):
         desc_c.anomalies.append(
             "une sélection est active sur la couche : seules les entités "
@@ -126,3 +152,23 @@ def compter_par_route(source, champ_route: str) -> Dict[str, int]:
             cle = str(val).strip().upper()
             comptes[cle] = comptes.get(cle, 0) + 1
     return comptes
+
+
+def lire_lignes(source, champs: Sequence[str], geometrie: bool = False,
+                epsg: Optional[int] = None) -> List[Dict[str, object]]:
+    """Lit une couche en lecture seule et renvoie une liste de dictionnaires.
+
+    `champs` sont les noms RÉELS des champs. Avec `geometrie=True`, la clé
+    'SHAPE@' contient l'objet géométrie, projeté dans `epsg` si fourni.
+    """
+    import arcpy
+
+    noms = list(champs) + (["SHAPE@"] if geometrie else [])
+    kwargs = {}
+    if geometrie and epsg:
+        kwargs["spatial_reference"] = arcpy.SpatialReference(epsg)
+    lignes = []
+    with arcpy.da.SearchCursor(source, noms, **kwargs) as cur:
+        for valeurs in cur:
+            lignes.append(dict(zip(noms, valeurs)))
+    return lignes

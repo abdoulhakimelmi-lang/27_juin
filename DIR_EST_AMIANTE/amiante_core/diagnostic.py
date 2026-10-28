@@ -17,6 +17,10 @@ from . import nommage, referentiel, sorties
 from .controles import normaliser_route, variantes_route
 
 
+class ErreurTraitement(Exception):
+    """Erreur bloquante détectée avant toute écriture."""
+
+
 class Journal(object):
     """Journal minimal ; la toolbox fournit une version branchée sur arcpy."""
 
@@ -102,14 +106,18 @@ def executer_diagnostic(dossier_pdf: str, couche_troncons, couche_points, couche
     d_tr = referentiel.decrire_couche(couche_troncons, "Couche 1 — tronçons locaux",
                                       referentiel.CHAMPS_TRONCONS,
                                       referentiel.EFFECTIF_TRONCONS,
-                                      referentiel.TYPE_GEOM_TRONCONS)
+                                      referentiel.TYPE_GEOM_TRONCONS,
+                                      referentiel.EPSG_TRONCONS)
     d_pt = referentiel.decrire_couche(couche_points, "Couche 2 — points PR",
                                       referentiel.CHAMPS_POINTS_PR,
                                       referentiel.EFFECTIF_POINTS_PR,
-                                      referentiel.TYPE_GEOM_POINTS)
+                                      referentiel.TYPE_GEOM_POINTS,
+                                      referentiel.EPSG_POINTS_PR)
     d_ip = referentiel.decrire_couche(couche_interplo, "Couche 3 — INTERPLO d'origine",
                                       referentiel.CHAMPS_INTERPLO,
-                                      referentiel.EFFECTIF_INTERPLO)
+                                      referentiel.EFFECTIF_INTERPLO,
+                                      referentiel.TYPE_GEOM_INTERPLO,
+                                      referentiel.EPSG_INTERPLO)
     for d in (d_tr, d_pt, d_ip):
         for ligne in d.lignes_rapport():
             if ligne.startswith("ERREUR"):
@@ -118,8 +126,6 @@ def executer_diagnostic(dossier_pdf: str, couche_troncons, couche_points, couche
                 journal.avertissement(ligne)
             else:
                 journal.info(ligne)
-    journal.info("Rappel : les champs de la couche points PR ne sont pas encore "
-                 "exploités ; merci de transmettre la liste ci-dessus.")
     resultat["couches"] = (d_tr, d_pt, d_ip)
 
     # 3. Routes ----------------------------------------------------------
