@@ -14,7 +14,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from amiante_core import diagnostic, nommage, sorties  # noqa: E402
+from amiante_core_v2 import diagnostic, nommage, sorties  # noqa: E402
 
 
 def main(argv):

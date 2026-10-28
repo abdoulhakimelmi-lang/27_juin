@@ -9,8 +9,8 @@ sys.path.insert(0, ICI)
 sys.path.insert(0, os.path.dirname(ICI))
 
 from faux_arcpy import FauxPolyligne  # noqa: E402
-from amiante_core import nommage  # noqa: E402
-from amiante_core import reconstruction_bretelles as rb  # noqa: E402
+from amiante_core_v2 import nommage  # noqa: E402
+from amiante_core_v2 import reconstruction_bretelles as rb  # noqa: E402
 
 CHAMPS_IP = {"objetid": "objetid", "route": "route", "nomplodeb": "nomplodeb", "nomplofin": "nomplofin"}
 CHAMPS_LOCAL = {"ID_INTERPLO": "ID_INTERPLO", "LONG_REF_M": "LONG_REF_M", "ROUTE": "ROUTE",

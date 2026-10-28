@@ -8,10 +8,10 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from amiante_core import controles as c  # noqa: E402
-from amiante_core import referentiel as r  # noqa: E402
-from amiante_core import sorties as s  # noqa: E402
-from amiante_core.diagnostic import controle_route  # noqa: E402
+from amiante_core_v2 import controles as c  # noqa: E402
+from amiante_core_v2 import referentiel as r  # noqa: E402
+from amiante_core_v2 import sorties as s  # noqa: E402
+from amiante_core_v2.diagnostic import controle_route  # noqa: E402
 
 
 class TestControles(unittest.TestCase):

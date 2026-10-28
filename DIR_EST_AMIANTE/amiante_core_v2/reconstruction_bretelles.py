@@ -22,7 +22,8 @@ from __future__ import annotations
 import datetime
 from typing import Dict, List, Optional
 
-from . import geometrie, nommage, referentiel, sorties
+from . import comparaison, geometrie, nommage, referentiel, sorties
+from .diagnostic import ErreurTraitement
 from .controles import (departements_concordants, forme_souple_nomplo, normaliser_code,
                         normaliser_identifiant, verifier_code_echangeur)
 
@@ -333,9 +334,6 @@ def executer_reconstruction_bretelles(dossier_pdf: str, couche_troncons, couche_
     fournies ; écrit une classe d'entités, une table de contrôle et, si une
     couche historique est fournie, une table de comparaison — toutes nouvelles."""
     import arcpy
-
-    from . import comparaison
-    from .diagnostic import ErreurTraitement
 
     resultat: Dict[str, object] = {}
 

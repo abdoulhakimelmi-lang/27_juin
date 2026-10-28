@@ -28,7 +28,7 @@ INTERPLO = "INTERPLO_FICTIF"
 
 
 def charger_pyt():
-    chemin = os.path.join(RACINE, "DIR_EST_AMIANTE.pyt")
+    chemin = os.path.join(RACINE, "DIR_EST_AMIANTE_V2.pyt")
     loader = importlib.machinery.SourceFileLoader("dir_est_amiante_pyt", chemin)
     spec = importlib.util.spec_from_loader(loader.name, loader)
     module = importlib.util.module_from_spec(spec)

@@ -7,7 +7,7 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from amiante_core import nommage as n  # noqa: E402
+from amiante_core_v2 import nommage as n  # noqa: E402
 
 
 class TestSection(unittest.TestCase):

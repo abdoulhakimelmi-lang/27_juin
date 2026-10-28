@@ -1,25 +1,79 @@
 # DIR EST AMIANTE — Python Toolbox ArcGIS Pro
 
-Version **0.2.0-phase2** : diagnostic (phase 1, validé sur le VDI) et
-reconstruction des bretelles (phase 2, **à tester sur le VDI**).
+Version **0.2.1-phase2-correctif** : diagnostic (phase 1, validé sur le
+VDI) et reconstruction des bretelles (phase 2, **à tester sur le VDI**).
 
-> Le code de la phase 2 **n'a jamais été exécuté dans ArcGIS Pro**. Il a été
-> testé avec un faux module `arcpy` (en mémoire) et des données fictives,
-> sous Python 3.9, 3.11 et 3.13.
+> Ce code **n'a jamais été exécuté dans ArcGIS Pro**, y compris le
+> chargement dans le Catalogue. Il a été testé avec un faux module `arcpy`
+> (en mémoire) et des données fictives, sous Python 3.9, 3.11 et 3.13.
+
+## Correctif de chargement (0.2.1)
+
+**Problème constaté sur le VDI** : la phase 2 ne s'ouvrait pas dans le
+Catalogue. L'erreur était
+`ImportError: cannot import name 'comparaison' from 'amiante_core'`, avec
+un `amiante_core` lu dans le dossier de la phase 1.
+
+**Cause** : les deux phases utilisaient le même nom de paquet,
+`amiante_core`, chargé par `sys.path`. Python garde chaque module en
+mémoire sous son nom (`sys.modules`). Quand la boîte de phase 1 était
+chargée en premier dans la session, la phase 2 recevait le paquet de la
+phase 1, qui n'a pas `comparaison`. Un redémarrage ne suffit pas tant que
+les deux boîtes sont dans le projet.
+
+**Correction** :
+- le paquet s'appelle désormais **`amiante_core_v2`** ;
+- le fichier s'appelle **`DIR_EST_AMIANTE_V2.pyt`**, avec l'alias
+  `DIRESTAMIANTEV2` et le libellé « DIR EST AMIANTE V2 », pour se distinguer
+  de la phase 1 ;
+- le `.pyt` charge le paquet **par son chemin exact**, celui du dossier du
+  `.pyt`. Il **ne modifie plus `sys.path`**. Il retire de la mémoire toute
+  autre copie de `amiante_core_v2` avant de charger la sienne, et vérifie que
+  chaque sous-module vient bien de son dossier. Le `amiante_core` de la
+  phase 1 n'est pas touché ;
+- le moteur n'est plus importé à l'ouverture du `.pyt` : une erreur de
+  chargement s'affiche sur le premier paramètre de l'outil au lieu de
+  produire l'icône rouge ;
+- le moteur est rechargé entièrement à chaque exécution, ce qui remplace
+  `importlib.reload`. Le journal affiche « Moteur chargé depuis : … » ;
+- tous les imports internes sont des imports relatifs en tête de module.
 
 ## Installation sur le VDI
 
-1. **Ne pas écraser la version de phase 1** si vous souhaitez la garder :
-   décompresser l'archive dans un nouveau dossier, par exemple
-   `DIR_EST_AMIANTE_phase2`.
-2. Le dossier `amiante_core` doit rester à côté de `DIR_EST_AMIANTE.pyt`.
-3. Dans ArcGIS Pro : volet **Catalogue** > clic droit sur **Boîtes
-   d'outils** > **Ajouter une boîte d'outils** > `DIR_EST_AMIANTE.pyt`.
-   Si l'ancienne boîte est déjà dans le projet, la retirer d'abord (clic
-   droit > Retirer du projet : cela ne supprime aucun fichier).
-4. Ouvrir l'outil **Traitement des PDF Amiante**. L'outil recharge ses
-   modules à chaque exécution : il n'est pas nécessaire de redémarrer
-   ArcGIS Pro après une correction des fichiers `.py`.
+1. Dans ArcGIS Pro, **retirer du projet** l'ancienne boîte de phase 2
+   (clic droit > Retirer : aucun fichier n'est supprimé). La boîte de
+   phase 1 peut rester.
+2. Fermer ArcGIS Pro. Cela vide la mémoire Python, y compris les modules
+   chargés à la main dans le Notebook.
+3. Décompresser `DIR_EST_AMIANTE_phase2_correctif.zip` dans un **nouveau
+   dossier**, par exemple
+   `C:\Users\<vous>\Documents\DIR_EST_AMIANTE_phase2_correctif\`. Ne pas
+   décompresser par-dessus l'ancienne phase 2 ni dans le dossier de la
+   phase 1.
+4. Vérifier que le dossier contient `DIR_EST_AMIANTE_V2.pyt` **et**, juste
+   à côté, le dossier `amiante_core_v2`.
+5. Ouvrir ArcGIS Pro et le projet. Dans le volet **Catalogue**, clic droit
+   sur **Boîtes d'outils** > **Ajouter une boîte d'outils** >
+   `DIR_EST_AMIANTE_V2.pyt`.
+6. Ouvrir **DIR EST AMIANTE V2** > **Traitement des PDF Amiante**. Au
+   lancement, le journal doit afficher la version `0.2.1-phase2-correctif`
+   et le chemin du dossier `amiante_core_v2` utilisé.
+
+### Si l'icône reste rouge
+
+Dans un Notebook ArcGIS Pro, sans redémarrer :
+
+```python
+%run "C:\...\DIR_EST_AMIANTE_phase2_correctif\DIR_EST_AMIANTE\outils\verifier_chargement.py" "C:\...\DIR_EST_AMIANTE_phase2_correctif\DIR_EST_AMIANTE\DIR_EST_AMIANTE_V2.pyt"
+```
+
+Le script ne lit ni n'écrit aucune donnée SIG. Il affiche :
+- les modules « amiante » déjà en mémoire ;
+- le résultat de l'import du `.pyt` (nombre de paramètres) ;
+- le dossier d'où vient chaque module du moteur ;
+- l'erreur éventuelle renvoyée par `arcpy.ImportToolbox`.
+
+Me transmettre la sortie complète.
 
 ## Paramètres
 
@@ -179,8 +233,8 @@ permet de le voir.
 python -m unittest discover -s tests -v
 ```
 
-Le code est compatible avec Python 3.7 et plus (vérifié avec vermin) et
-pyflakes ne signale rien.
+85 tests au total. Le code est compatible avec Python 3.7 et plus
+(vérifié avec vermin) et pyflakes ne signale rien.
 
 | Fichier | Contenu | Tests |
 |---|---|---|
@@ -190,6 +244,22 @@ pyflakes ne signale rien.
 | `test_bretelles.py` | moteur bretelles : cas nominal et toutes les anomalies | 21 |
 | `test_geometrie_comparaison.py` | Hausdorff, sens, identifiants, comparaison | 13 |
 | `test_toolbox_bretelles.py` | mode bretelles de bout en bout | 6 |
+| `test_coexistence_phases.py` | phases 1 et 2 dans le même Python | 9 |
+
+Le test de coexistence construit, dans un dossier temporaire, une phase 1
+(paquet `amiante_core` et `.pyt` reprenant son mécanisme d'import par
+`sys.path`) et une phase 2 corrigée. Il vérifie :
+- qu'il **reproduit l'erreur d'origine** avec l'ancien mécanisme ;
+- que l'ordre de chargement phase 1 puis phase 2, ou l'inverse, est sans
+  effet : chacune utilise son propre moteur ;
+- que la phase 2 ne touche pas à `sys.path` ;
+- qu'une copie périmée de `amiante_core_v2`, déjà en mémoire et en tête de
+  `sys.path`, est ignorée ;
+- qu'une exécution complète du mode bretelles fonctionne avec la phase 1
+  chargée ;
+- que deux copies de la phase 2 utilisent chacune leur propre moteur ;
+- qu'un paquet incomplet ou absent n'empêche pas l'ouverture du `.pyt` et
+  produit un message clair.
 
 Le test de bout en bout porte sur 10 bretelles fictives, plus une bretelle
 ambiguë, un code échangeur absent et 2 sections. Il vérifie :
@@ -205,11 +275,17 @@ ambiguë, un code échangeur absent et 2 sections. Il vérifie :
 python outils/inventaire_pdf.py <dossier_pdf> <rapport.csv>
 ```
 
+### Vérification du chargement (Notebook ArcGIS Pro)
+
+```bash
+python outils/verifier_chargement.py <chemin>/DIR_EST_AMIANTE_V2.pyt
+```
+
 ## Architecture
 
 ```
-DIR_EST_AMIANTE.pyt              boîte à outils (paramètres, validation, modes)
-amiante_core/
+DIR_EST_AMIANTE_V2.pyt           boîte à outils (chargement par chemin, paramètres, modes)
+amiante_core_v2/
   nommage.py                     analyse des noms de PDF                [phase 1]
   referentiel.py                 lecture/structure des couches          [phases 1-2]
   controles.py                   règles de contrôle, identifiants       [phases 1-2]
@@ -221,6 +297,7 @@ amiante_core/
   localisation.py                localisation des PR                    [phase 3 — à faire]
   reconstruction_sections.py     reconstruction des sections            [phase 3 — à faire]
 outils/inventaire_pdf.py         inventaire CSV sans ArcGIS
+outils/verifier_chargement.py    diagnostic du chargement dans ArcGIS Pro
 tests/                           tests unittest + faux arcpy
 ```
 

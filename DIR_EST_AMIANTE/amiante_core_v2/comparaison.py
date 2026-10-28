@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from typing import Dict, List, Optional
 
-from . import geometrie
+from . import geometrie, referentiel, sorties
 from .controles import normaliser_identifiant
 
 TOLERANCE_TRACE_M = 0.01
@@ -132,8 +132,6 @@ def synthese(lignes: List[Dict[str, object]]) -> Dict[str, int]:
 
 def executer_comparaison(resultats, couche_histo, champ_id_histo: Optional[str], table_sortie: str,
                          journal, maintenant=None) -> Dict[str, object]:
-    from . import referentiel, sorties
-
     desc = referentiel.decrire_couche(couche_histo, "Couche historique", ())
     for ligne in desc.lignes_rapport():
         journal.info(ligne)

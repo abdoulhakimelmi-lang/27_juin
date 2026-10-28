@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-"""Boîte à outils Python ArcGIS Pro — DIR EST AMIANTE.
+"""Boîte à outils Python ArcGIS Pro — DIR EST AMIANTE (phase 2).
 
-Le dossier `amiante_core` doit se trouver à côté de ce fichier .pyt.
+Le dossier `amiante_core_v2` doit se trouver à côté de ce fichier .pyt.
 
 Modes :
 - DIAGNOSTIC (phase 1) : analyse des noms de PDF, structure des couches
@@ -10,41 +10,103 @@ Modes :
   table de contrôle, comparaison facultative avec une couche historique ;
 - RECONSTRUCTION_SECTIONS : présent mais bloqué (phase 3).
 
+Chargement du moteur : le paquet `amiante_core_v2` est chargé par CHEMIN
+EXPLICITE depuis le dossier de ce .pyt, sans modifier sys.path. Une autre
+version présente dans la même session (phase 1 `amiante_core`, ou une autre
+copie de la phase 2) ne peut donc pas être importée à sa place. Le moteur
+n'est chargé qu'à la première validation ou exécution : une erreur de
+chargement s'affiche dans l'outil au lieu d'empêcher l'ouverture de la boîte.
+
 Sécurité : lecture seule sur les couches fournies ; écriture uniquement de
 nouvelles sorties au nom horodaté dans la géodatabase de sortie ;
 overwriteOutput forcé à False.
 """
 
 import importlib
+import importlib.util
 import os
 import sys
+import types
 
 import arcpy
 
 _DOSSIER = os.path.dirname(os.path.abspath(__file__))
-if _DOSSIER not in sys.path:
-    sys.path.insert(0, _DOSSIER)
-
-import amiante_core  # noqa: E402
-from amiante_core import (comparaison, controles, diagnostic, geometrie, nommage,  # noqa: E402
-                          reconstruction_bretelles, referentiel, sorties)
+PAQUET = "amiante_core_v2"
+DOSSIER_PAQUET = os.path.join(_DOSSIER, PAQUET)
+SOUS_MODULES = ("nommage", "controles", "referentiel", "sorties", "geometrie",
+                "diagnostic", "comparaison", "reconstruction_bretelles")
 
 MODE_DIAGNOSTIC = "DIAGNOSTIC"
 MODE_BRETELLES = "RECONSTRUCTION_BRETELLES"
 MODE_SECTIONS = "RECONSTRUCTION_SECTIONS"
 MODES_DISPONIBLES = (MODE_DIAGNOSTIC, MODE_BRETELLES)
 
-
-def _recharger_modules():
-    """ArcGIS Pro garde les modules en mémoire : on les recharge à chaque
-    exécution pour que les corrections déposées sur le VDI soient prises en
-    compte sans redémarrer l'application."""
-    for module in (amiante_core, nommage, controles, referentiel, sorties, geometrie,
-                   diagnostic, comparaison, reconstruction_bretelles):
-        importlib.reload(module)
+_MOTEUR = None
 
 
-class JournalArcpy(diagnostic.Journal):
+def _normaliser(chemin):
+    return os.path.normcase(os.path.realpath(os.path.abspath(chemin)))
+
+
+def _vient_du_dossier(module, dossier):
+    fichier = getattr(module, "__file__", None)
+    if not fichier:
+        return False
+    return _normaliser(fichier).startswith(_normaliser(dossier) + os.sep)
+
+
+def _purger_paquet():
+    for nom in list(sys.modules):
+        if nom == PAQUET or nom.startswith(PAQUET + "."):
+            del sys.modules[nom]
+
+
+def charger_moteur():
+    """Charge (ou recharge) amiante_core_v2 depuis le dossier de ce .pyt.
+
+    - toute version de amiante_core_v2 déjà en mémoire est retirée de
+      sys.modules (les modules de la phase 1, nommés amiante_core, ne sont
+      pas touchés) ;
+    - le paquet est importé depuis son fichier __init__.py exact ;
+    - l'origine de chaque sous-module est vérifiée.
+    Renvoie un espace de noms : moteur.nommage, moteur.diagnostic, ...
+    """
+    init = os.path.join(DOSSIER_PAQUET, "__init__.py")
+    if not os.path.isfile(init):
+        raise ImportError("Paquet {0} introuvable : {1} (le dossier {0} doit être à côté "
+                          "du fichier .pyt)".format(PAQUET, init))
+    importlib.invalidate_caches()
+    _purger_paquet()
+    spec = importlib.util.spec_from_file_location(
+        PAQUET, init, submodule_search_locations=[DOSSIER_PAQUET])
+    paquet = importlib.util.module_from_spec(spec)
+    sys.modules[PAQUET] = paquet
+    try:
+        spec.loader.exec_module(paquet)
+        modules = {nom: importlib.import_module(PAQUET + "." + nom) for nom in SOUS_MODULES}
+    except Exception:
+        _purger_paquet()
+        raise
+    for nom, module in [("__init__", paquet)] + list(modules.items()):
+        if not _vient_du_dossier(module, DOSSIER_PAQUET):
+            _purger_paquet()
+            raise ImportError("Module {0}.{1} chargé depuis {2} au lieu de {3}".format(
+                PAQUET, nom, getattr(module, "__file__", "?"), DOSSIER_PAQUET))
+    return types.SimpleNamespace(paquet=paquet, dossier=DOSSIER_PAQUET, **modules)
+
+
+def moteur(recharger=False):
+    """Moteur en cache pour la validation ; rechargé à chaque exécution pour
+    prendre en compte les corrections sans redémarrer ArcGIS Pro."""
+    global _MOTEUR
+    if _MOTEUR is None or recharger:
+        _MOTEUR = charger_moteur()
+    return _MOTEUR
+
+
+class JournalArcpy(object):
+    """Journal branché sur les messages de géotraitement."""
+
     def info(self, texte):
         arcpy.AddMessage(texte)
 
@@ -57,8 +119,8 @@ class JournalArcpy(diagnostic.Journal):
 
 class Toolbox(object):
     def __init__(self):
-        self.label = "DIR EST AMIANTE"
-        self.alias = "DIRESTAMIANTE"
+        self.label = "DIR EST AMIANTE V2"
+        self.alias = "DIRESTAMIANTEV2"
         self.tools = [TraitementPDFAmiante]
 
 
@@ -145,9 +207,16 @@ class TraitementPDFAmiante(object):
         return
 
     def updateMessages(self, parameters):
+        try:
+            m = moteur()
+        except Exception as exc:  # message visible dans la fenêtre de l'outil
+            parameters[self.P_DOSSIER].setErrorMessage(
+                "Moteur {0} non chargé depuis {1} : {2}".format(PAQUET, DOSSIER_PAQUET, exc))
+            return
+
         p_prefixe = parameters[self.P_PREFIXE]
         if p_prefixe.valueAsText:
-            erreurs = sorties.valider_prefixe(p_prefixe.valueAsText)
+            erreurs = m.sorties.valider_prefixe(p_prefixe.valueAsText)
             if erreurs:
                 p_prefixe.setErrorMessage(" ; ".join(erreurs))
 
@@ -174,20 +243,24 @@ class TraitementPDFAmiante(object):
         return
 
     def execute(self, parameters, messages):
-        _recharger_modules()
         arcpy.env.overwriteOutput = False  # sécurité : jamais d'écrasement
+        journal = JournalArcpy()
+        try:
+            m = moteur(recharger=True)
+        except Exception as exc:
+            journal.erreur("Moteur {0} non chargé depuis {1} : {2}".format(PAQUET, DOSSIER_PAQUET, exc))
+            raise arcpy.ExecuteError(str(exc))
 
         valeurs = [p.valueAsText for p in parameters]
         mode = valeurs[self.P_MODE]
-        journal = JournalArcpy()
-        journal.info("DIR EST AMIANTE — version {0} — mode {1}".format(
-            amiante_core.__version__, mode))
+        journal.info("DIR EST AMIANTE — version {0} — mode {1}".format(m.paquet.__version__, mode))
+        journal.info("Moteur chargé depuis : {0}".format(m.dossier))
 
         if mode not in MODES_DISPONIBLES:
             journal.erreur("Mode {0} non disponible dans cette version.".format(mode))
             raise arcpy.ExecuteError("Mode non disponible")
 
-        erreurs = sorties.valider_prefixe(valeurs[self.P_PREFIXE])
+        erreurs = m.sorties.valider_prefixe(valeurs[self.P_PREFIXE])
         if erreurs:
             journal.erreur(" ; ".join(erreurs))
             raise arcpy.ExecuteError("Préfixe invalide")
@@ -202,13 +275,13 @@ class TraitementPDFAmiante(object):
             journal=journal)
         try:
             if mode == MODE_DIAGNOSTIC:
-                diagnostic.executer_diagnostic(**communs)
+                m.diagnostic.executer_diagnostic(**communs)
             else:
-                reconstruction_bretelles.executer_reconstruction_bretelles(
+                m.reconstruction_bretelles.executer_reconstruction_bretelles(
                     couche_histo=valeurs[self.P_HISTO],
                     champ_id_histo=valeurs[self.P_CHAMP_HISTO],
                     **communs)
-        except diagnostic.ErreurTraitement as exc:
+        except m.diagnostic.ErreurTraitement as exc:
             journal.erreur(str(exc))
             raise arcpy.ExecuteError(str(exc))
         return

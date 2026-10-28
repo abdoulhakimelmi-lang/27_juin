@@ -8,9 +8,9 @@ sys.path.insert(0, ICI)
 sys.path.insert(0, os.path.dirname(ICI))
 
 from faux_arcpy import FauxPolyligne  # noqa: E402
-from amiante_core import comparaison as cp  # noqa: E402
-from amiante_core import geometrie as g  # noqa: E402
-from amiante_core.controles import (departements_concordants, forme_souple_nomplo,  # noqa: E402
+from amiante_core_v2 import comparaison as cp  # noqa: E402
+from amiante_core_v2 import geometrie as g  # noqa: E402
+from amiante_core_v2.controles import (departements_concordants, forme_souple_nomplo,  # noqa: E402
                                     normaliser_identifiant, verifier_code_echangeur)
 
 LIGNE = [[(0.0, 0.0), (100.0, 0.0), (100.0, 50.0)]]
